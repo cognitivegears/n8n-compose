@@ -151,7 +151,7 @@ services:
   # Task runner for code execution (JavaScript, Python)
   # Runs workflow code in isolated environment with Python support
   n8n-runner:
-    image: docker.n8n.io/n8nio/n8n-task-runners:2.1.4
+    image: n8nio/runners:2.1.4
     container_name: n8n-runner
     restart: unless-stopped
     environment:
