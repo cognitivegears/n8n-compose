@@ -3,8 +3,6 @@
 # PostgreSQL initialization script for n8n
 # Creates non-root user with appropriate privileges
 #
-# Security: Uses psql variables for safe SQL parameter handling
-#
 
 set -euo pipefail
 
@@ -14,44 +12,42 @@ if [[ -z "${POSTGRES_NON_ROOT_USER:-}" ]] || [[ -z "${POSTGRES_NON_ROOT_PASSWORD
     exit 0
 fi
 
-# Validate username format (alphanumeric and underscore only)
+# Validate username format (alphanumeric and underscore only - prevents SQL injection)
 if [[ ! "${POSTGRES_NON_ROOT_USER}" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then
     echo "ERROR: Invalid username format. Use only alphanumeric characters and underscores."
     exit 1
 fi
 
-# Create user idempotently using psql variables for safe interpolation
-# This prevents SQL injection via environment variables
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" \
-    -v non_root_user="${POSTGRES_NON_ROOT_USER}" \
-    -v non_root_pass="${POSTGRES_NON_ROOT_PASSWORD}" \
-    -v target_db="${POSTGRES_DB}" <<-'EOSQL'
-    -- Create user if not exists (idempotent)
-    DO $$
-    BEGIN
-        IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = :'non_root_user') THEN
-            EXECUTE format('CREATE USER %I WITH PASSWORD %L', :'non_root_user', :'non_root_pass');
-            RAISE NOTICE 'Created user: %', :'non_root_user';
-        ELSE
-            -- Update password if user already exists
-            EXECUTE format('ALTER USER %I WITH PASSWORD %L', :'non_root_user', :'non_root_pass');
-            RAISE NOTICE 'Updated password for existing user: %', :'non_root_user';
-        END IF;
-    END
-    $$;
+# Escape single quotes in password by doubling them (SQL standard escaping)
+ESCAPED_PASSWORD="${POSTGRES_NON_ROOT_PASSWORD//\'/\'\'}"
 
-    -- Grant necessary privileges (minimum required for n8n)
-    GRANT CONNECT ON DATABASE :"target_db" TO :"non_root_user";
-    GRANT USAGE ON SCHEMA public TO :"non_root_user";
-    GRANT CREATE ON SCHEMA public TO :"non_root_user";
+# Create user idempotently
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<EOSQL
+-- Create user if not exists (idempotent)
+DO \$\$
+BEGIN
+    IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '${POSTGRES_NON_ROOT_USER}') THEN
+        CREATE USER "${POSTGRES_NON_ROOT_USER}" WITH PASSWORD '${ESCAPED_PASSWORD}';
+        RAISE NOTICE 'Created user: ${POSTGRES_NON_ROOT_USER}';
+    ELSE
+        ALTER USER "${POSTGRES_NON_ROOT_USER}" WITH PASSWORD '${ESCAPED_PASSWORD}';
+        RAISE NOTICE 'Updated password for existing user: ${POSTGRES_NON_ROOT_USER}';
+    END IF;
+END
+\$\$;
 
-    -- Grant privileges on existing tables
-    GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO :"non_root_user";
-    GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO :"non_root_user";
+-- Grant necessary privileges (minimum required for n8n)
+GRANT CONNECT ON DATABASE "${POSTGRES_DB}" TO "${POSTGRES_NON_ROOT_USER}";
+GRANT USAGE ON SCHEMA public TO "${POSTGRES_NON_ROOT_USER}";
+GRANT CREATE ON SCHEMA public TO "${POSTGRES_NON_ROOT_USER}";
 
-    -- Set default privileges for future tables
-    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO :"non_root_user";
-    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO :"non_root_user";
+-- Grant privileges on existing tables
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO "${POSTGRES_NON_ROOT_USER}";
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO "${POSTGRES_NON_ROOT_USER}";
+
+-- Set default privileges for future tables
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO "${POSTGRES_NON_ROOT_USER}";
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO "${POSTGRES_NON_ROOT_USER}";
 EOSQL
 
 echo "SETUP INFO: Non-root user '${POSTGRES_NON_ROOT_USER}' configured successfully"
