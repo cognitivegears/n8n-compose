@@ -106,9 +106,10 @@ if [[ "${POSTGRES_PASSWORD:-}" == "generate-a-strong-password-here" ]] || \
    [[ "${POSTGRES_PASSWORD:-}" == "CHANGE_ME_generate_strong_password" ]] || \
    [[ "${POSTGRES_NON_ROOT_PASSWORD:-}" == "generate-another-strong-password-here" ]] || \
    [[ "${POSTGRES_NON_ROOT_PASSWORD:-}" == "CHANGE_ME_generate_another_password" ]] || \
-   [[ "${N8N_ENCRYPTION_KEY:-}" == "CHANGE_ME_generate_hex_key" ]]; then
+   [[ "${N8N_ENCRYPTION_KEY:-}" == "CHANGE_ME_generate_hex_key" ]] || \
+   [[ "${N8N_RUNNERS_AUTH_TOKEN:-}" == "CHANGE_ME_generate_runner_token" ]]; then
     log_error "Please set real passwords/keys in .env (not placeholder values)"
-    log_error "Generate with: openssl rand -base64 32 (passwords) or openssl rand -hex 32 (encryption key)"
+    log_error "Generate with: openssl rand -base64 32 (passwords) or openssl rand -hex 32 (keys/tokens)"
     exit 1
 fi
 

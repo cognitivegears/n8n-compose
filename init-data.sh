@@ -21,8 +21,12 @@ fi
 # Escape single quotes in password by doubling them (SQL standard escaping)
 ESCAPED_PASSWORD="${POSTGRES_NON_ROOT_PASSWORD//\'/\'\'}"
 
-# Create user idempotently
+# Create user and extensions idempotently
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<EOSQL
+-- Create extensions required by n8n (must be done as superuser)
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
 -- Create user if not exists (idempotent)
 DO \$\$
 BEGIN
