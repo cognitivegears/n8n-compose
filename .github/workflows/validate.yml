@@ -1,0 +1,74 @@
+name: Validate Docker Compose
+
+on:
+  pull_request:
+    paths:
+      - 'compose.yaml'
+      - '.env.example'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create .env from example
+        run: cp .env.example .env
+
+      - name: Validate Docker Compose syntax
+        run: |
+          echo "Validating Docker Compose syntax..."
+          docker compose config --quiet
+          echo "Syntax validation passed!"
+
+      - name: Check for required services
+        run: |
+          echo "Checking required services..."
+          SERVICES=$(docker compose config --services)
+
+          echo "Found services:"
+          echo "${SERVICES}"
+
+          echo "${SERVICES}" | grep -q "postgres" || { echo "ERROR: postgres service missing"; exit 1; }
+          echo "${SERVICES}" | grep -q "n8n" || { echo "ERROR: n8n service missing"; exit 1; }
+          echo "${SERVICES}" | grep -q "cloudflared" || { echo "ERROR: cloudflared service missing"; exit 1; }
+
+          echo "All required services present!"
+
+      - name: Verify image versions are pinned
+        run: |
+          echo "Checking image version pinning..."
+
+          # Check postgres has version
+          if grep -q 'image: postgres$' compose.yaml || grep -q "image: 'postgres'$" compose.yaml; then
+            echo "ERROR: postgres image is not version-pinned"
+            exit 1
+          fi
+
+          # Check n8n has version
+          if grep -q 'n8nio/n8n$' compose.yaml; then
+            echo "ERROR: n8n image is not version-pinned"
+            exit 1
+          fi
+
+          # Check cloudflared has version
+          if grep -q 'cloudflared$' compose.yaml || grep -q "cloudflared'$" compose.yaml; then
+            echo "ERROR: cloudflared image is not version-pinned"
+            exit 1
+          fi
+
+          echo "All images are version-pinned!"
+
+      - name: Check for secrets in compose.yaml
+        run: |
+          echo "Checking for hardcoded secrets..."
+
+          # Check for common secret patterns
+          if grep -iE '(password|secret|token|key)\s*[:=]\s*["\047][^$][^"\047]+["\047]' compose.yaml; then
+            echo "WARNING: Possible hardcoded secrets detected in compose.yaml"
+            echo "Secrets should be in .env file and referenced as \${VARIABLE}"
+            exit 1
+          fi
+
+          echo "No hardcoded secrets detected!"

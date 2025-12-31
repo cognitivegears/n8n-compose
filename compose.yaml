@@ -1,0 +1,172 @@
+# n8n-compose Docker Compose Configuration
+# Security-hardened configuration with resource limits and network segmentation
+
+services:
+  postgres:
+    image: postgres:16.11
+    container_name: n8n-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER
+      - POSTGRES_PASSWORD
+      - POSTGRES_DB
+      - POSTGRES_NON_ROOT_USER
+      - POSTGRES_NON_ROOT_PASSWORD
+      - TZ=${GENERIC_TIMEZONE}
+    volumes:
+      - db_storage:/var/lib/postgresql/data
+      - ./init-data.sh:/docker-entrypoint-initdb.d/init-data.sh:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -h localhost -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - n8n-backend
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 256M
+
+  cloudflared:
+    image: cloudflare/cloudflared:2025.11.1
+    container_name: n8n-cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    networks:
+      - n8n-frontend
+    depends_on:
+      n8n:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'cloudflared', 'tunnel', '--version']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+        reservations:
+          memory: 64M
+    stop_grace_period: 30s
+
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:2.1.4
+    container_name: n8n-app
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5678:5678"
+    environment:
+      # Database connection
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=${POSTGRES_DB}
+      - DB_POSTGRESDB_USER=${POSTGRES_NON_ROOT_USER}
+      - DB_POSTGRESDB_PASSWORD=${POSTGRES_NON_ROOT_PASSWORD}
+      # Core settings
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
+      - N8N_HOST=${SUBDOMAIN}.${DOMAIN_NAME}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=https
+      - N8N_RUNNERS_ENABLED=true
+      - NODE_ENV=production
+      - WEBHOOK_URL=https://${SUBDOMAIN}.${DOMAIN_NAME}/
+      - GENERIC_TIMEZONE=${GENERIC_TIMEZONE}
+      - TZ=${GENERIC_TIMEZONE}
+      # Security settings
+      - N8N_SECURE_COOKIE=${N8N_SECURE_COOKIE:-true}
+      - N8N_PROXY_HOPS=${N8N_PROXY_HOPS:-1}
+      - N8N_LOG_LEVEL=${N8N_LOG_LEVEL:-warn}
+      # Execution settings
+      - EXECUTIONS_DATA_PRUNE=${EXECUTIONS_DATA_PRUNE:-true}
+      - EXECUTIONS_DATA_MAX_AGE=${EXECUTIONS_DATA_MAX_AGE:-336}
+      - EXECUTIONS_TIMEOUT=${EXECUTIONS_TIMEOUT:-300}
+      - EXECUTIONS_TIMEOUT_MAX=${EXECUTIONS_TIMEOUT_MAX:-3600}
+      - N8N_PAYLOAD_SIZE_MAX=${N8N_PAYLOAD_SIZE_MAX:-16}
+      # Telemetry settings
+      - N8N_DIAGNOSTICS_ENABLED=${N8N_DIAGNOSTICS_ENABLED:-false}
+      - N8N_VERSION_NOTIFICATIONS_ENABLED=${N8N_VERSION_NOTIFICATIONS_ENABLED:-false}
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./local-files:/files
+    networks:
+      - n8n-backend
+      - n8n-frontend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q --spider http://localhost:5678/healthz || exit 1']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2.0'
+        reservations:
+          memory: 512M
+
+  # Utility container for backup/restore operations
+  # This service is never started directly - it exists for:
+  #   1. Dependabot to track Alpine version updates
+  #   2. Backup/restore scripts to reference a consistent image version
+  # Usage: docker compose run --rm alpine <command>
+  alpine:
+    image: alpine:3.20
+    profiles:
+      - utility
+    command: ["echo", "This container is for utility operations only"]
+
+networks:
+  # Backend network - database access only (internal, no external access)
+  n8n-backend:
+    driver: bridge
+    internal: true
+  # Frontend network - for cloudflared to reach n8n
+  n8n-frontend:
+    driver: bridge
+
+volumes:
+  n8n_data:
+    name: n8n_data
+  db_storage:
+    name: n8n_db_storage

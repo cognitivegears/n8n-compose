@@ -1,0 +1,134 @@
+name: Create Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'compose.yaml'
+
+permissions:
+  contents: write
+
+jobs:
+  check-trigger:
+    runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.check.outputs.should_release }}
+      is_dependabot: ${{ steps.check.outputs.is_dependabot }}
+    steps:
+      - name: Check commit author
+        id: check
+        run: |
+          AUTHOR="${{ github.event.head_commit.author.name }}"
+          if [[ "$AUTHOR" == "dependabot[bot]" ]]; then
+            echo "is_dependabot=true" >> $GITHUB_OUTPUT
+            echo "should_release=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_dependabot=false" >> $GITHUB_OUTPUT
+            # Also create releases for manual compose.yaml changes
+            echo "should_release=true" >> $GITHUB_OUTPUT
+          fi
+
+  create-release:
+    needs: check-trigger
+    if: needs.check-trigger.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version info from compose.yaml
+        id: versions
+        run: |
+          # Extract image versions from compose.yaml
+          N8N_VERSION=$(grep -oP 'n8nio/n8n:\K[0-9.]+' compose.yaml || echo "unknown")
+          POSTGRES_VERSION=$(grep -oP 'postgres:\K[0-9.]+' compose.yaml || echo "unknown")
+          CLOUDFLARED_VERSION=$(grep -oP 'cloudflared:\K[0-9.]+' compose.yaml || echo "unknown")
+
+          echo "n8n_version=${N8N_VERSION}" >> $GITHUB_OUTPUT
+          echo "postgres_version=${POSTGRES_VERSION}" >> $GITHUB_OUTPUT
+          echo "cloudflared_version=${CLOUDFLARED_VERSION}" >> $GITHUB_OUTPUT
+
+          echo "Detected versions:"
+          echo "  n8n: ${N8N_VERSION}"
+          echo "  PostgreSQL: ${POSTGRES_VERSION}"
+          echo "  cloudflared: ${CLOUDFLARED_VERSION}"
+
+      - name: Generate release tag
+        id: tag
+        run: |
+          # Generate tag based on date and short SHA
+          TAG="v$(date +%Y.%m.%d)-${GITHUB_SHA::7}"
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "Generated tag: ${TAG}"
+
+      - name: Get commit message
+        id: commit
+        run: |
+          MESSAGE=$(git log -1 --pretty=%B)
+          echo "message<<EOF" >> $GITHUB_OUTPUT
+          echo "${MESSAGE}" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Determine release type
+        id: type
+        run: |
+          if [[ "${{ needs.check-trigger.outputs.is_dependabot }}" == "true" ]]; then
+            echo "title=Dependency Update" >> $GITHUB_OUTPUT
+            echo "prefix=chore(deps):" >> $GITHUB_OUTPUT
+          else
+            echo "title=Release" >> $GITHUB_OUTPUT
+            echo "prefix=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: "${{ steps.type.outputs.title }} ${{ steps.tag.outputs.tag }}"
+          body: |
+            ## Docker Image Versions
+
+            | Image | Version |
+            |-------|---------|
+            | n8n | ${{ steps.versions.outputs.n8n_version }} |
+            | PostgreSQL | ${{ steps.versions.outputs.postgres_version }} |
+            | cloudflared | ${{ steps.versions.outputs.cloudflared_version }} |
+
+            ## Changes
+
+            ${{ steps.commit.outputs.message }}
+
+            ---
+
+            ### Update Instructions
+
+            To update your local installation:
+
+            ```bash
+            ./update.sh --apply
+            ```
+
+            Or manually:
+
+            ```bash
+            git pull origin main
+            docker compose pull
+            docker compose up -d
+            ```
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update version file
+        run: |
+          echo "${{ steps.tag.outputs.tag }}" > .version
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .version
+          git diff --staged --quiet || git commit -m "chore: update version to ${{ steps.tag.outputs.tag }}"
+          git push || echo "Nothing to push"

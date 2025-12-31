@@ -1,0 +1,34 @@
+# Environment files containing secrets
+.env
+
+# Local files directory (user data)
+local-files/
+
+# Database files
+chats.db
+*.db
+*.sqlite
+
+# Backup files
+backups/
+*.tar.gz
+*.sql
+*.sql.gz
+
+# Editor and IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Docker volumes (if accidentally created locally)
+db_storage/
+n8n_data/
+
+# Log files
+*.log
