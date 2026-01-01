@@ -294,11 +294,12 @@ if ! wait_for_postgres; then
 fi
 
 # Drop and recreate database (using proper quoting to prevent injection)
+# Connect to 'postgres' database for admin commands (default maintenance DB)
 log_info "Preparing database..."
 docker compose -f "${SCRIPT_DIR}/compose.yaml" exec -T postgres \
-    psql -U "${POSTGRES_USER}" -c "DROP DATABASE IF EXISTS \"${POSTGRES_DB}\";" 2>/dev/null || true
+    psql -U "${POSTGRES_USER}" -d postgres -c "DROP DATABASE IF EXISTS \"${POSTGRES_DB}\";" 2>/dev/null || true
 docker compose -f "${SCRIPT_DIR}/compose.yaml" exec -T postgres \
-    psql -U "${POSTGRES_USER}" -c "CREATE DATABASE \"${POSTGRES_DB}\";"
+    psql -U "${POSTGRES_USER}" -d postgres -c "CREATE DATABASE \"${POSTGRES_DB}\";"
 
 # Restore database
 log_info "Restoring database..."
