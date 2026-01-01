@@ -276,7 +276,7 @@ if [[ -f "${BACKUP_DIR}/n8n_data.tar.gz" ]]; then
         -v "${VOLUME_NAME}:/data" \
         -v "${BACKUP_DIR}:/backup:ro" \
         "${ALPINE_IMAGE}" \
-        sh -c "cd /data && tar xzf /backup/n8n_data.tar.gz --no-same-owner --no-same-permissions"
+        sh -c "cd /data && tar xzf /backup/n8n_data.tar.gz --no-same-owner --no-same-permissions && chown -R 1000:1000 /data"
 
     log_info "n8n data volume restored"
 else
