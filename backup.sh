@@ -88,6 +88,7 @@ if [[ -f "${SCRIPT_DIR}/.env" ]]; then
         exit 1
     fi
     set -a
+    set +H  # Disable history expansion (handles ! in passwords)
     source "${SCRIPT_DIR}/.env"
     set +a
 else
