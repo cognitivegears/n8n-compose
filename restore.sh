@@ -346,7 +346,7 @@ until docker compose -f "${SCRIPT_DIR}/compose.yaml" ps 2>/dev/null | grep -q "h
 done
 
 # Verify services are running
-if docker compose -f "${SCRIPT_DIR}/compose.yaml" ps 2>/dev/null | grep -q "running"; then
+if docker compose -f "${SCRIPT_DIR}/compose.yaml" ps 2>/dev/null | grep -qE "(running|Up)"; then
     log_info "Restore completed successfully!"
     log_info "n8n should be available at https://${SUBDOMAIN}.${DOMAIN_NAME}"
     log_info "Local access: http://127.0.0.1:5678"

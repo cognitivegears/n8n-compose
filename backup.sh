@@ -126,7 +126,7 @@ log_info "Starting backup to ${BACKUP_PATH}"
 PROJECT_NAME=$(basename "${SCRIPT_DIR}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g')
 
 # Check if postgres container is running
-if ! docker compose -f "${SCRIPT_DIR}/compose.yaml" ps postgres 2>/dev/null | grep -q "running"; then
+if ! docker compose -f "${SCRIPT_DIR}/compose.yaml" ps postgres 2>/dev/null | grep -qE "(running|Up)"; then
     log_error "PostgreSQL container is not running"
     exit 1
 fi
