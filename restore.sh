@@ -307,6 +307,21 @@ gunzip -c "${BACKUP_DIR}/database.sql.gz" | \
     docker compose -f "${SCRIPT_DIR}/compose.yaml" exec -T postgres \
     psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}"
 
+# Re-apply grants for non-root user (lost during restore)
+if [[ -n "${POSTGRES_NON_ROOT_USER:-}" ]]; then
+    log_info "Re-applying database permissions for ${POSTGRES_NON_ROOT_USER}..."
+    docker compose -f "${SCRIPT_DIR}/compose.yaml" exec -T postgres \
+        psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" <<EOSQL
+GRANT CONNECT ON DATABASE "${POSTGRES_DB}" TO "${POSTGRES_NON_ROOT_USER}";
+GRANT USAGE ON SCHEMA public TO "${POSTGRES_NON_ROOT_USER}";
+GRANT CREATE ON SCHEMA public TO "${POSTGRES_NON_ROOT_USER}";
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO "${POSTGRES_NON_ROOT_USER}";
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO "${POSTGRES_NON_ROOT_USER}";
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO "${POSTGRES_NON_ROOT_USER}";
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO "${POSTGRES_NON_ROOT_USER}";
+EOSQL
+fi
+
 log_info "Database restored"
 
 # Restore configuration files (optional - prompt user)
