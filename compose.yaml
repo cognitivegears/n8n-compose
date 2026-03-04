@@ -205,11 +205,7 @@ services:
     networks:
       - n8n-backend
     healthcheck:
-      test: ['CMD', '/bin/grpc_health_probe', '-addr=localhost:6334']
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 15s
+      disable: true
     security_opt:
       - no-new-privileges:true
     logging:
