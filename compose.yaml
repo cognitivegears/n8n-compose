@@ -81,6 +81,9 @@ services:
     image: docker.n8n.io/n8nio/n8n:2.1.4
     container_name: n8n-app
     restart: unless-stopped
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     ports:
       - "127.0.0.1:5678:5678"
     environment:
@@ -103,6 +106,7 @@ services:
       - N8N_RUNNERS_AUTH_TOKEN=${N8N_RUNNERS_AUTH_TOKEN}
       - NODE_ENV=production
       - WEBHOOK_URL=https://${SUBDOMAIN}.${DOMAIN_NAME}/
+      - N8N_EDITOR_BASE_URL=https://${SUBDOMAIN}.${DOMAIN_NAME}/
       - GENERIC_TIMEZONE=${GENERIC_TIMEZONE}
       - TZ=${GENERIC_TIMEZONE}
       # Security settings
@@ -153,6 +157,9 @@ services:
   n8n-runner:
     image: n8nio/runners:2.1.4
     container_name: n8n-runner
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     restart: unless-stopped
     environment:
       - N8N_RUNNERS_AUTH_TOKEN=${N8N_RUNNERS_AUTH_TOKEN}
@@ -162,6 +169,7 @@ services:
       - TZ=${GENERIC_TIMEZONE}
     networks:
       - n8n-backend
+      - n8n-frontend
     depends_on:
       n8n:
         condition: service_healthy
