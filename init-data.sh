@@ -40,6 +40,27 @@ BEGIN
 END
 \$\$;
 
+-- Create eva_memory_meta table for RAG memory system
+CREATE TABLE IF NOT EXISTS eva_memory_meta (
+  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  qdrant_point_id TEXT NOT NULL,
+  content         TEXT NOT NULL,
+  category        TEXT NOT NULL DEFAULT 'general',
+  source          TEXT NOT NULL DEFAULT 'chat',
+  importance      INTEGER NOT NULL DEFAULT 5 CHECK (importance BETWEEN 1 AND 10),
+  tags            TEXT[] DEFAULT '{}',
+  expires_at      TIMESTAMPTZ,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_eva_memory_meta_category ON eva_memory_meta(category);
+CREATE INDEX IF NOT EXISTS idx_eva_memory_meta_source ON eva_memory_meta(source);
+CREATE INDEX IF NOT EXISTS idx_eva_memory_meta_expires_at ON eva_memory_meta(expires_at);
+CREATE INDEX IF NOT EXISTS idx_eva_memory_meta_created_at ON eva_memory_meta(created_at);
+CREATE INDEX IF NOT EXISTS idx_eva_memory_meta_importance ON eva_memory_meta(importance);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_eva_memory_meta_qdrant_point_id ON eva_memory_meta(qdrant_point_id);
+
 -- Grant necessary privileges (minimum required for n8n)
 GRANT CONNECT ON DATABASE "${POSTGRES_DB}" TO "${POSTGRES_NON_ROOT_USER}";
 GRANT USAGE ON SCHEMA public TO "${POSTGRES_NON_ROOT_USER}";

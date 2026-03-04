@@ -188,6 +188,35 @@ services:
         reservations:
           memory: 256M
 
+  qdrant:
+    image: qdrant/qdrant:v1.13.2
+    container_name: n8n-qdrant
+    restart: unless-stopped
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    networks:
+      - n8n-backend
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q --spider http://localhost:6333/healthz || exit 1']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 128M
+
   # Utility container for backup/restore operations
   # This service is never started directly - it exists for:
   #   1. Dependabot to track Alpine version updates
@@ -213,3 +242,5 @@ volumes:
     name: n8n_data
   db_storage:
     name: n8n_db_storage
+  qdrant_storage:
+    name: n8n_qdrant_storage
