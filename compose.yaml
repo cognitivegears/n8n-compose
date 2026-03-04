@@ -205,7 +205,7 @@ services:
     networks:
       - n8n-backend
     healthcheck:
-      test: ['CMD-SHELL', 'wget -q --spider http://localhost:6333/healthz || exit 1']
+      test: ['CMD', '/bin/grpc_health_probe', '-addr=localhost:6334']
       interval: 30s
       timeout: 5s
       retries: 3
