@@ -237,7 +237,7 @@ services:
     command:
       - |
         pip install -q kagimcp
-        npx -y supergateway --stdio "python -m kagimcp" --port 8000 --ssePath /sse --messagePath /message
+        npx -y supergateway --stdio "kagimcp" --port 8000 --ssePath /sse --messagePath /message
     environment:
       - KAGI_API_KEY=${KAGI_API_KEY}
     networks:
