@@ -61,6 +61,41 @@ CREATE INDEX IF NOT EXISTS idx_eva_memory_meta_created_at ON eva_memory_meta(cre
 CREATE INDEX IF NOT EXISTS idx_eva_memory_meta_importance ON eva_memory_meta(importance);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_eva_memory_meta_qdrant_point_id ON eva_memory_meta(qdrant_point_id);
 
+-- Eva Brain: session context table
+CREATE TABLE IF NOT EXISTS eva_session_context (
+  id                   UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  session_key          TEXT NOT NULL UNIQUE,
+  rolling_summary      TEXT DEFAULT '',
+  recent_events        JSONB DEFAULT '[]',
+  working_state        JSONB DEFAULT '{}',
+  total_token_estimate INTEGER DEFAULT 0,
+  last_compaction_at   TIMESTAMPTZ,
+  locked_at            TIMESTAMPTZ,
+  updated_at           TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_eva_session_context_key ON eva_session_context(session_key);
+
+INSERT INTO eva_session_context (session_key) VALUES ('primary')
+  ON CONFLICT (session_key) DO NOTHING;
+
+-- Eva Brain: persistent state table
+CREATE TABLE IF NOT EXISTS eva_persistent_state (
+  id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  category   TEXT NOT NULL,
+  key        TEXT NOT NULL,
+  value      TEXT NOT NULL,
+  priority   TEXT DEFAULT 'medium',
+  status     TEXT DEFAULT 'active',
+  source     TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(category, key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_eva_persistent_state_category ON eva_persistent_state(category);
+CREATE INDEX IF NOT EXISTS idx_eva_persistent_state_status ON eva_persistent_state(status);
+
 -- Grant necessary privileges (minimum required for n8n)
 GRANT CONNECT ON DATABASE "${POSTGRES_DB}" TO "${POSTGRES_NON_ROOT_USER}";
 GRANT USAGE ON SCHEMA public TO "${POSTGRES_NON_ROOT_USER}";
