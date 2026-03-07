@@ -237,7 +237,7 @@ services:
     command:
       - |
         pip install -q kagimcp
-        npx -y supergateway --stdio "kagimcp" --port 8000 --outputTransport streamableHttp --streamableHttpPath /mcp
+        npx -y supergateway --stdio "kagimcp" --port 8000 --outputTransport streamableHttp --streamableHttpPath /mcp --stateful
     environment:
       - KAGI_API_KEY=${KAGI_API_KEY}
     networks:
@@ -256,10 +256,10 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 512M
           cpus: '0.5'
         reservations:
-          memory: 64M
+          memory: 128M
 
   # Utility container for backup/restore operations
   # This service is never started directly - it exists for:
