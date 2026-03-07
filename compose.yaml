@@ -222,6 +222,41 @@ services:
         reservations:
           memory: 128M
 
+  # MCP sidecar: Kagi Search (stdio→SSE bridge via supergateway)
+  # Provides web search and summarization tools to Eva Brain via MCP protocol
+  kagi-mcp:
+    image: node:20-slim
+    container_name: n8n-kagi-mcp
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        apt-get update -qq && apt-get install -y -qq python3 python3-venv > /dev/null 2>&1
+        python3 -m venv /tmp/venv
+        /tmp/venv/bin/pip install -q kagimcp
+        npx -y supergateway --stdio "/tmp/venv/bin/python -m kagimcp" --port 8000 --ssePath /sse --messagePath /message
+    environment:
+      - KAGI_API_KEY=${KAGI_API_KEY}
+    networks:
+      - n8n-backend
+    depends_on:
+      n8n:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+        reservations:
+          memory: 64M
+
   # Utility container for backup/restore operations
   # This service is never started directly - it exists for:
   #   1. Dependabot to track Alpine version updates
