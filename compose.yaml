@@ -224,10 +224,15 @@ services:
 
   # MCP sidecar: Kagi Search (stdio→SSE bridge via supergateway)
   # Provides web search and summarization tools to Eva Brain via MCP protocol
+  # Needs n8n-frontend for internet access (install deps + Kagi API calls)
+  # and n8n-backend so n8n can reach it at http://kagi-mcp:8000/sse
   kagi-mcp:
     image: node:20-slim
     container_name: n8n-kagi-mcp
     restart: unless-stopped
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
@@ -239,6 +244,7 @@ services:
       - KAGI_API_KEY=${KAGI_API_KEY}
     networks:
       - n8n-backend
+      - n8n-frontend
     depends_on:
       n8n:
         condition: service_healthy
